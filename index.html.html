@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Invoice Generator</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2pdf for generating PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Phosphor Icons for UI elements -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Custom scrollbar for form area */
+        .custom-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        
+        /* Ensure the invoice preview looks like a physical paper */
+        #invoice-preview-container {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        /* --- INVOICE TEMPLATE STYLES --- */
+        /* Template: Standard (Default Tailwind styles apply) */
+        
+        /* Template: Modern */
+        .template-modern {
+            border-top: 16px solid #3b82f6; /* Tailwind blue-500 */
+        }
+        .template-modern .inv-title {
+            color: #1e40af !important; /* Tailwind blue-800 */
+        }
+        .template-modern .inv-table-header th {
+            background-color: #eff6ff; /* Tailwind blue-50 */
+            color: #1e3a8a !important; /* Tailwind blue-900 */
+            border-bottom: 2px solid #bfdbfe !important; /* Tailwind blue-200 */
+        }
+        .template-modern .inv-label {
+            color: #3b82f6 !important; 
+        }
+
+        /* Template: Classic Serif */
+        .template-classic {
+            font-family: 'Georgia', 'Times New Roman', serif;
+        }
+        .template-classic .inv-title {
+            color: #000 !important;
+            font-weight: normal;
+            border-bottom: 2px solid #000;
+            padding-bottom: 8px;
+        }
+        .template-classic .inv-table-header th {
+            border-top: 2px solid #000;
+            border-bottom: 2px solid #000 !important;
+            color: #000 !important;
+        }
+        .template-classic .inv-divider {
+            border-top: 2px solid #000 !important;
+        }
+        .template-classic .inv-label {
+            color: #000 !important;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans h-screen overflow-hidden flex flex-col">
+
+    <header class="bg-white border-b border-slate-200 shadow-sm z-10 flex-shrink-0">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i class="ph-fill ph-receipt text-3xl text-blue-600"></i>
+                <h1 class="font-bold text-xl tracking-tight text-slate-900" data-i18n="appTitle">InvoiceGen</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <select id="app-template" class="border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium bg-white cursor-pointer shadow-sm">
+                    <option value="template-standard" data-i18n="templateStandard" selected>Standard Layout</option>
+                    <option value="template-modern" data-i18n="templateModern">Modern Layout</option>
+                    <option value="template-classic" data-i18n="templateClassic">Classic Layout</option>
+                </select>
+                <select id="app-language" class="border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium bg-slate-50 cursor-pointer shadow-sm">
+                    <option value="en" selected>English</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="it">Italiano</option>
+                    <option value="pt">Português</option>
+                    <option value="zh">中文 (Chinese)</option>
+                    <option value="ja">日本語 (Japanese)</option>
+                    <option value="ar">العربية (Arabic)</option>
+                    <option value="hi">हिन्दी (Hindi)</option>
+                </select>
+                <button onclick="downloadPDF()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm">
+                    <i class="ph ph-download-simple text-lg"></i>
+                    <span data-i18n="downloadPDF">Download PDF</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- LEFT COLUMN: Form Inputs -->
+        <section class="w-full lg:w-1/2 xl:w-2/5 bg-white border-r border-slate-200 overflow-y-auto custom-scroll p-6 lg:p-8">
+            <div class="space-y-8 max-w-lg mx-auto lg:mx-0">
+                
+                <div>
+                    <h2 class="text-lg font-semibold border-b border-slate-200 pb-2 mb-4" data-i18n="companyLogoTitle">Company Logo</h2>
+                    <div>
+                        <input type="file" id="logo-upload" accept="image/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition cursor-pointer">
+                        <p class="text-xs text-slate-400 mt-2" data-i18n="logoRecommendation">Recommended: PNG or JPG with transparent background.</p>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-semibold border-b border-slate-200 pb-2 mb-4" data-i18n="invoiceDetailsTitle">Invoice Details</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1" data-i18n="docTypeLabel">Document Type</label>
+                            <select id="inv-doc-type" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition cursor-pointer bg-white">
+                                <option value="docTypeInvoice" data-i18n="docTypeInvoice" selected>Invoice</option>
+                                <option value="docTypeProforma" data-i18n="docTypeProforma">Proforma Invoice</option>
+                                <option value="docTypeQuotation" data-i18n="docTypeQuotation">Quotation</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1" data-i18n="invoiceNumberLabel">Invoice Number</label>
+                            <input type="text" id="inv-number" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" value="INV-2024-001">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1" data-i18n="currencyLabel">Currency</label>
+                            <select id="inv-currency" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition cursor-pointer bg-white">
+                                <option value="$">USD ($)</option>
+                                <option value="€">EUR (€)</option>
+                                <option value="£">GBP (£)</option>
+                                <option value="¥">JPY (¥)</option>
+                                <option value="₹">INR (₹)</option>
+                                <option value="A$">AUD (A$)</option>
+                                <option value="C$">CAD (C$)</option>
+                                <option value="CHF">CHF (CHF)</option>
+                                <option value="CN¥">CNY (CN¥)</option>
+                                <option value="kr">SEK/NOK/DKK (kr)</option>
+                                <option value="R$">BRL (R$)</option>
+                                <option value="₽">RUB (₽)</option>
+                                <option value="R">ZAR (R)</option>
+                                <option value="د.إ">AED (د.إ)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1" data-i18n="issueDateLabel">Issue Date</label>
+                            <input type="date" id="inv-date" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1" data-i18n="dueDateLabel">Due Date</label>
+                            <input type="date" id="inv-due-date" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <h2 class="text-lg font-semibold border-b border-slate-200 pb-2 mb-4" data-i18n="billedByTitle">Billed By</h2>
+                        <div class="space-y-3">
+                            <input type="text" id="from-name" placeholder="Your Company Name" data-placeholder-i18n="phCompanyName" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" value="Acme Corp">
+                            <input type="text" id="from-email" placeholder="Email Address" data-placeholder-i18n="phEmail" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" value="billing@acmecorp.com">
+                            <input type="tel" id="from-phone" placeholder="Phone Number" data-placeholder-i18n="phPhone" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" value="+1 (555) 123-4567">
+                            <input type="url" id="from-website" placeholder="Website" data-placeholder-i18n="phWebsite" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" value="www.acmecorp.com">
+                            <textarea id="from-address" placeholder="Company Address" data-placeholder-i18n="phCompanyAddress" rows="2" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none resize-none">123 Business Rd.&#10;Tech City, TC 10101</textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold border-b border-slate-200 pb-2 mb-4" data-i18n="billedToTitle">Billed To</h2>
+                        <div class="space-y-3">
+                            <input type="text" id="to-name" placeholder="Client Name" data-placeholder-i18n="phClientName" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" value="Jane Doe">
+                            <input type="text" id="to-email" placeholder="Client Email" data-placeholder-i18n="phClientEmail" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" value="jane@example.com">
+                            <input type="tel" id="to-phone" placeholder="Client Phone" data-placeholder-i18n="phClientPhone" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" value="+1 (555) 987-6543">
+                            <textarea id="to-address" placeholder="Client Address" data-placeholder-i18n="phClientAddress" rows="2" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none resize-none">456 Client St.&#10;Design Town, DT 20202</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-semibold border-b border-slate-200 pb-2 mb-4 flex justify-between items-center" data-i18n="lineItemsTitle">
+                        Line Items
+                    </h2>
+                    <div id="items-form-container" class="space-y-3 mb-4">
+                        <!-- Items will be injected here via JS -->
+                    </div>
+                    <button onclick="addItem()" class="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 text-sm bg-blue-50 px-3 py-2 rounded border border-blue-100 hover:bg-blue-100 transition">
+                        <i class="ph ph-plus-circle"></i> <span data-i18n="addItemBtn">Add Item</span>
+                    </button>
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-semibold border-b border-slate-200 pb-2 mb-4" data-i18n="totalsNotesTitle">Totals & Notes</h2>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1" data-i18n="taxRateLabel">Tax Rate (%)</label>
+                            <input type="number" id="inv-tax" min="0" step="0.1" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" value="5">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1" data-i18n="discountLabel">Discount (%)</label>
+                            <input type="number" id="inv-discount" min="0" step="0.1" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" value="0">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-600 mb-1" data-i18n="bankDetailsTitle">Bank Details</label>
+                        <textarea id="inv-bank" rows="3" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none resize-none" data-placeholder-i18n="phBankDetails" placeholder="Bank Name:&#10;Account No:&#10;IBAN:"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1" data-i18n="notesLabel">Notes / Terms</label>
+                        <textarea id="inv-notes" rows="3" class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none resize-none">Please pay within 30 days. Thank you for your business!</textarea>
+                    </div>
+                </div>
+                
+                <div class="pb-10"></div> <!-- padding for scrolling -->
+            </div>
+        </section>
+
+        <section class="w-full lg:w-1/2 xl:w-3/5 bg-slate-200 overflow-y-auto p-4 lg:p-8 flex justify-center items-start custom-scroll" id="preview-section">
+            
+            <!-- This is the container that will be converted to PDF -->
+            <div id="invoice-preview-container" class="bg-white w-full max-w-[800px] min-h-[1056px] p-8 relative flex flex-col text-slate-800 transition-all duration-300 template-standard">
+                
+                <!-- Preview Header -->
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <img id="preview-logo" src="" alt="Company Logo" class="max-h-16 mb-2 hidden object-contain">
+                        <h1 class="text-3xl font-bold text-slate-900 tracking-tight uppercase inv-title" id="preview-title">INVOICE</h1>
+                        <p class="text-slate-500 mt-1 font-medium text-sm inv-header-text" id="preview-inv-number">#INV-2024-001</p>
+                    </div>
+                    <div class="text-right">
+                        <h2 class="text-lg font-bold text-slate-800" id="preview-from-name">Acme Corp</h2>
+                        <p class="text-slate-500 text-xs whitespace-pre-line mt-1 inv-header-text" id="preview-from-address">123 Business Rd.<br>Tech City, TC 10101</p>
+                        <p class="text-slate-500 text-xs mt-1 flex items-center justify-end gap-1"><i class="ph-fill ph-envelope-simple"></i> <span id="preview-from-email">billing@acmecorp.com</span></p>
+                        <p class="text-slate-500 text-xs mt-0.5 flex items-center justify-end gap-1"><i class="ph-fill ph-phone"></i> <span id="preview-from-phone">+1 (555) 123-4567</span></p>
+                    </div>
+                </div>
+
+                <!-- Preview Parties & Dates -->
+                <div class="flex justify-between items-end mb-6 border-t border-b border-slate-100 py-3 inv-divider">
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 inv-label" data-i18n="billedToTitle">Billed To</p>
+                        <h3 class="text-base font-bold text-slate-800" id="preview-to-name">Jane Doe</h3>
+                        <p class="text-slate-600 text-xs whitespace-pre-line mt-1" id="preview-to-address">456 Client St.<br>Design Town, DT 20202</p>
+                        <p class="text-slate-600 text-xs mt-1 flex items-center gap-1"><i class="ph-fill ph-envelope-simple"></i> <span id="preview-to-email">jane@example.com</span></p>
+                        <p class="text-slate-600 text-xs mt-0.5 flex items-center gap-1"><i class="ph-fill ph-phone"></i> <span id="preview-to-phone">+1 (555) 987-6543</span></p>
+                    </div>
+                    <div class="text-right space-y-1">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider inline-block mr-3 inv-label" data-i18n="issueDateLabel">Issue Date</p>
+                            <p class="text-slate-800 text-sm font-medium inline-block w-24 text-right" id="preview-date">-</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider inline-block mr-3 inv-label" data-i18n="dueDateLabel">Due Date</p>
+                            <p class="text-slate-800 text-sm font-medium inline-block w-24 text-right" id="preview-due-date">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview Items Table -->
+                <div class="mb-6">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="border-b-2 border-slate-800 text-slate-800 inv-table-header">
+                                <th class="py-2 font-semibold w-1/2" data-i18n="thDescription">Description</th>
+                                <th class="py-2 font-semibold text-center w-1/6" data-i18n="thQty">Qty</th>
+                                <th class="py-2 font-semibold text-right w-1/6" data-i18n="thPrice">Price</th>
+                                <th class="py-2 font-semibold text-right w-1/6" data-i18n="thTotal">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-items-body">
+                            <!-- Items injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex justify-end mb-6">
+                    <div class="w-full sm:w-1/2 lg:w-2/5 space-y-2 text-sm">
+                        <div class="flex justify-between text-slate-600">
+                            <span data-i18n="subtotalLabel">Subtotal</span>
+                            <span id="preview-subtotal">$0.00</span>
+                        </div>
+                        <div class="flex justify-between text-slate-600" id="preview-discount-row">
+                            <span id="preview-discount-label">Discount (0%)</span>
+                            <span id="preview-discount-amt" class="text-green-600">-$0.00</span>
+                        </div>
+                        <div class="flex justify-between text-slate-600" id="preview-tax-row">
+                            <span id="preview-tax-label">Tax (0%)</span>
+                            <span id="preview-tax-amt">+$0.00</span>
+                        </div>
+                        <div class="flex justify-between border-t-2 border-slate-800 pt-2 text-base font-bold text-slate-900 inv-divider">
+                            <span data-i18n="totalDueLabel">Total Due</span>
+                            <span id="preview-total">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes & Bank Details -->
+                <div class="mt-8 pt-6 border-t border-slate-100 inv-divider flex flex-col sm:flex-row justify-between gap-6">
+                    <div class="flex-1">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 inv-label" data-i18n="notesLabel">Notes / Terms</p>
+                        <p class="text-slate-600 text-xs whitespace-pre-line" id="preview-notes">Please pay within 30 days.</p>
+                    </div>
+                    <div class="flex-1" id="preview-bank-container" style="display: none;">
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 inv-label" data-i18n="bankDetailsTitle">Bank Details</p>
+                        <p class="text-slate-600 text-xs whitespace-pre-line" id="preview-bank"></p>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="mt-auto pt-6 text-center border-t border-slate-100 inv-divider text-xs text-slate-500 flex justify-center items-center flex-wrap gap-x-4 gap-y-1" id="preview-footer">
+                    <span id="footer-from-phone" class="flex items-center gap-1"><i class="ph-fill ph-phone"></i> <span></span></span>
+                    <span id="footer-from-email" class="flex items-center gap-1"><i class="ph-fill ph-envelope-simple"></i> <span></span></span>
+                    <span id="footer-from-website" class="flex items-center gap-1"><i class="ph-fill ph-globe"></i> <span></span></span>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Set today's date and a due date (30 days from now) as defaults
+        const today = new Date();
+        const due = new Date();
+        due.setDate(today.getDate() + 30);
+        
+        document.getElementById('inv-date').valueAsDate = today;
+        document.getElementById('inv-due-date').valueAsDate = due;
+
+        // State for line items
+        let items = [
+            { id: 1, desc: 'Web Development Services', qty: 1, price: 1500 },
+            { id: 2, desc: 'UI/UX Design', qty: 10, price: 75 }
+        ];
+
+        let currentLang = 'en';
+
+        // Translation Dictionary
+        const translations = {
+            en: {
+                appTitle: 'InvoiceGen', downloadPDF: 'Download PDF',
+                companyLogoTitle: 'Company Logo', logoRecommendation: 'Recommended: PNG or JPG with transparent background.',
+                invoiceDetailsTitle: 'Invoice Details', invoiceNumberLabel: 'Invoice Number', currencyLabel: 'Currency',
+                docTypeLabel: 'Document Type', docTypeInvoice: 'Invoice', docTypeProforma: 'Proforma Invoice', docTypeQuotation: 'Quotation',
+                issueDateLabel: 'Issue Date', dueDateLabel: 'Due Date',
+                billedByTitle: 'Billed By', billedToTitle: 'Billed To',
+                lineItemsTitle: 'Line Items', addItemBtn: 'Add Item',
+                totalsNotesTitle: 'Totals & Notes', taxRateLabel: 'Tax Rate (%)', discountLabel: 'Discount (%)', notesLabel: 'Notes / Terms',
+                bankDetailsTitle: 'Bank Details', invoiceTitle: 'INVOICE', thDescription: 'Description', thQty: 'Qty', thPrice: 'Price', thTotal: 'Total',
+                subtotalLabel: 'Subtotal', totalDueLabel: 'Total Due',
+                phCompanyName: 'Your Company Name', phEmail: 'Email Address', phPhone: 'Phone Number', phCompanyAddress: 'Company Address', phWebsite: 'Website',
+                phClientName: 'Client Name', phClientEmail: 'Client Email', phClientPhone: 'Client Phone', phClientAddress: 'Client Address',
+                phItemDesc: 'Description', phBankDetails: 'Bank Name:\nAccount No:\nIBAN:',
+                templateStandard: 'Standard Layout', templateModern: 'Modern Layout', templateClassic: 'Classic Layout'
+            },
+            es: {
+                appTitle: 'Generador', downloadPDF: 'Descargar PDF',
+                companyLogoTitle: 'Logotipo', logoRecommendation: 'Recomendado: PNG o JPG transparente.',
+                invoiceDetailsTitle: 'Detalles de Factura', invoiceNumberLabel: 'Número de Factura', currencyLabel: 'Moneda',
+                docTypeLabel: 'Tipo de Documento', docTypeInvoice: 'Factura', docTypeProforma: 'Factura Proforma', docTypeQuotation: 'Cotización',
+                issueDateLabel: 'Fecha de Emisión', dueDateLabel: 'Fecha de Vencimiento',
+                billedByTitle: 'Facturado Por', billedToTitle: 'Facturado A',
+                lineItemsTitle: 'Artículos', addItemBtn: 'Añadir Artículo',
+                totalsNotesTitle: 'Totales y Notas', taxRateLabel: 'Impuesto (%)', discountLabel: 'Descuento (%)', notesLabel: 'Notas / Términos',
+                bankDetailsTitle: 'Detalles Bancarios', invoiceTitle: 'FACTURA', thDescription: 'Descripción', thQty: 'Cant.', thPrice: 'Precio', thTotal: 'Total',
+                subtotalLabel: 'Subtotal', totalDueLabel: 'Total',
+                phCompanyName: 'Nombre de Empresa', phEmail: 'Correo Electrónico', phPhone: 'Teléfono', phCompanyAddress: 'Dirección', phWebsite: 'Sitio Web',
+                phClientName: 'Nombre del Cliente', phClientEmail: 'Correo del Cliente', phClientPhone: 'Teléfono del Cliente', phClientAddress: 'Dirección del Cliente',
+                phItemDesc: 'Descripción', phBankDetails: 'Nombre del Banco:\nNo. de Cuenta:\nIBAN:',
+                templateStandard: 'Diseño Estándar', templateModern: 'Diseño Moderno', templateClassic: 'Diseño Clásico'
+            },
+            fr: {
+                appTitle: 'Générateur', downloadPDF: 'Télécharger PDF',
+                companyLogoTitle: 'Logo de l\'Entreprise', logoRecommendation: 'Recommandé : PNG ou JPG avec fond transparent.',
+                invoiceDetailsTitle: 'Détails de la Facture', invoiceNumberLabel: 'Numéro de Facture', currencyLabel: 'Devise',
+                docTypeLabel: 'Type de document', docTypeInvoice: 'Facture', docTypeProforma: 'Facture Proforma', docTypeQuotation: 'Devis',
+                issueDateLabel: 'Date d\'Émission', dueDateLabel: 'Date d\'Échéance',
+                billedByTitle: 'Facturé Par', billedToTitle: 'Facturé À',
+                lineItemsTitle: 'Articles', addItemBtn: 'Ajouter un Article',
+                totalsNotesTitle: 'Totaux et Notes', taxRateLabel: 'Taxe (%)', discountLabel: 'Remise (%)', notesLabel: 'Notes / Conditions',
+                bankDetailsTitle: 'Coordonnées Bancaires', invoiceTitle: 'FACTURE', thDescription: 'Description', thQty: 'Qté', thPrice: 'Prix', thTotal: 'Total',
+                subtotalLabel: 'Sous-total', totalDueLabel: 'Total Dû',
+                phCompanyName: 'Nom de votre Entreprise', phEmail: 'Adresse Email', phPhone: 'Numéro de Téléphone', phCompanyAddress: 'Adresse de l\'Entreprise', phWebsite: 'Site Web',
+                phClientName: 'Nom du Client', phClientEmail: 'Email du Client', phClientPhone: 'Téléphone du Client', phClientAddress: 'Adresse du Client',
+                phItemDesc: 'Description', phBankDetails: 'Nom de la Banque :\nN° de Compte :\nIBAN :',
+                templateStandard: 'Mise en page Standard', templateModern: 'Mise en page Moderne', templateClassic: 'Mise en page Classique'
+            },
+            de: {
+                appTitle: 'RechnungsGen', downloadPDF: 'PDF Herunterladen',
+                companyLogoTitle: 'Firmenlogo', logoRecommendation: 'Empfohlen: PNG oder JPG mit transparentem Hintergrund.',
+                invoiceDetailsTitle: 'Rechnungsdetails', invoiceNumberLabel: 'Rechnungsnummer', currencyLabel: 'Währung',
+                docTypeLabel: 'Dokumentart', docTypeInvoice: 'Rechnung', docTypeProforma: 'Proforma-Rechnung', docTypeQuotation: 'Angebot',
+                issueDateLabel: 'Ausstellungsdatum', dueDateLabel: 'Fälligkeitsdatum',
+                billedByTitle: 'Rechnungssteller', billedToTitle: 'Rechnungsempfänger',
+                lineItemsTitle: 'Positionen', addItemBtn: 'Position Hinzufügen',
+                totalsNotesTitle: 'Gesamtsummen & Notizen', taxRateLabel: 'Steuersatz (%)', discountLabel: 'Rabatt (%)', notesLabel: 'Notizen / Bedingungen',
+                bankDetailsTitle: 'Bankverbindung', invoiceTitle: 'RECHNUNG', thDescription: 'Beschreibung', thQty: 'Menge', thPrice: 'Preis', thTotal: 'Gesamt',
+                subtotalLabel: 'Zwischensumme', totalDueLabel: 'Gesamtbetrag',
+                phCompanyName: 'Ihr Firmenname', phEmail: 'E-Mail-Adresse', phPhone: 'Telefonnummer', phCompanyAddress: 'Firmenadresse', phWebsite: 'Webseite',
+                phClientName: 'Kundenname', phClientEmail: 'Kunden E-Mail', phClientPhone: 'Kunden Telefon', phClientAddress: 'Kundenadresse',
+                phItemDesc: 'Beschreibung', phBankDetails: 'Bankname:\nKontonummer:\nIBAN:',
+                templateStandard: 'Standard Layout', templateModern: 'Modernes Layout', templateClassic: 'Klassisches Layout'
+            },
+            it: {
+                 appTitle: 'FatturaGen', downloadPDF: 'Scarica PDF',
+                companyLogoTitle: 'Logo Aziendale', logoRecommendation: 'Consigliato: PNG o JPG con sfondo trasparente.',
+                invoiceDetailsTitle: 'Dettagli Fattura', invoiceNumberLabel: 'Numero Fattura', currencyLabel: 'Valuta',
+                docTypeLabel: 'Tipo di Documento', docTypeInvoice: 'Fattura', docTypeProforma: 'Fattura Proforma', docTypeQuotation: 'Preventivo',
+                issueDateLabel: 'Data di Emissione', dueDateLabel: 'Data di Scadenza',
+                billedByTitle: 'Fatturato Da', billedToTitle: 'Fatturato A',
+                lineItemsTitle: 'Voci', addItemBtn: 'Aggiungi Voce',
+                totalsNotesTitle: 'Totali e Note', taxRateLabel: 'Imposta (%)', discountLabel: 'Sconto (%)', notesLabel: 'Note / Condizioni',
+                bankDetailsTitle: 'Dettagli Bancari', invoiceTitle: 'FATTURA', thDescription: 'Descrizione', thQty: 'Qtà', thPrice: 'Prezzo', thTotal: 'Totale',
+                subtotalLabel: 'Subtotale', totalDueLabel: 'Totale Dovuto',
+                phCompanyName: 'Nome Azienda', phEmail: 'Indirizzo Email', phPhone: 'Numero di Telefono', phCompanyAddress: 'Indirizzo Azienda', phWebsite: 'Sito Web',
+                phClientName: 'Nome Cliente', phClientEmail: 'Email Cliente', phClientPhone: 'Telefono Cliente', phClientAddress: 'Indirizzo Cliente',
+                phItemDesc: 'Descrizione', phBankDetails: 'Nome Banca:\nNumero di Conto:\nIBAN:',
+                templateStandard: 'Layout Standard', templateModern: 'Layout Moderno', templateClassic: 'Layout Classico'
+            },
+            pt: {
+                 appTitle: 'Gerador', downloadPDF: 'Baixar PDF',
+                companyLogoTitle: 'Logotipo', logoRecommendation: 'Recomendado: PNG ou JPG com fundo transparente.',
+                invoiceDetailsTitle: 'Detalhes da Fatura', invoiceNumberLabel: 'Número da Fatura', currencyLabel: 'Moeda',
+                docTypeLabel: 'Tipo de Documento', docTypeInvoice: 'Fatura', docTypeProforma: 'Fatura Proforma', docTypeQuotation: 'Orçamento',
+                issueDateLabel: 'Data de Emissão', dueDateLabel: 'Data de Vencimento',
+                billedByTitle: 'Faturado Por', billedToTitle: 'Faturado Para',
+                lineItemsTitle: 'Itens', addItemBtn: 'Adicionar Item',
+                totalsNotesTitle: 'Totais e Notas', taxRateLabel: 'Imposto (%)', discountLabel: 'Desconto (%)', notesLabel: 'Notas / Termos',
+                bankDetailsTitle: 'Detalhes Bancários', invoiceTitle: 'FATURA', thDescription: 'Descrição', thQty: 'Qtd', thPrice: 'Preço', thTotal: 'Total',
+                subtotalLabel: 'Subtotal', totalDueLabel: 'Total a Pagar',
+                phCompanyName: 'Nome da Empresa', phEmail: 'Endereço de Email', phPhone: 'Número de Telefone', phCompanyAddress: 'Endereço da Empresa', phWebsite: 'Site',
+                phClientName: 'Nome do Cliente', phClientEmail: 'Email do Cliente', phClientPhone: 'Telefone do Cliente', phClientAddress: 'Endereço do Cliente',
+                phItemDesc: 'Descrição', phBankDetails: 'Nome do Banco:\nNº da Conta:\nIBAN:',
+                templateStandard: 'Layout Padrão', templateModern: 'Layout Moderno', templateClassic: 'Layout Clássico'
+            },
+             zh: {
+                appTitle: '发票生成器', downloadPDF: '下载 PDF',
+                companyLogoTitle: '公司标志', logoRecommendation: '推荐：透明背景的 PNG 或 JPG。',
+                invoiceDetailsTitle: '发票详情', invoiceNumberLabel: '发票号码', currencyLabel: '货币',
+                docTypeLabel: '文件类型', docTypeInvoice: '发票', docTypeProforma: '形式发票', docTypeQuotation: '报价单',
+                issueDateLabel: '开票日期', dueDateLabel: '到期日期',
+                billedByTitle: '开票人', billedToTitle: '账单接收方',
+                lineItemsTitle: '项目', addItemBtn: '添加项目',
+                totalsNotesTitle: '总计及备注', taxRateLabel: '税率 (%)', discountLabel: '折扣 (%)', notesLabel: '备注 / 条款',
+                bankDetailsTitle: '银行详情', invoiceTitle: '发票', thDescription: '描述', thQty: '数量', thPrice: '单价', thTotal: '总额',
+                subtotalLabel: '小计', totalDueLabel: '应付总额',
+                phCompanyName: '您的公司名称', phEmail: '电子邮件', phPhone: '电话号码', phCompanyAddress: '公司地址', phWebsite: '网站',
+                phClientName: '客户名称', phClientEmail: '客户电子邮件', phClientPhone: '客户电话', phClientAddress: '客户地址',
+                phItemDesc: '描述', phBankDetails: '银行名称：\n账号：\nIBAN：',
+                templateStandard: '标准布局', templateModern: '现代布局', templateClassic: '经典布局'
+            },
+            ja: {
+                appTitle: '請求書作成', downloadPDF: 'PDFをダウンロード',
+                companyLogoTitle: '会社のロゴ', logoRecommendation: '推奨: 透過背景の PNG または JPG',
+                invoiceDetailsTitle: '請求書の詳細', invoiceNumberLabel: '請求書番号', currencyLabel: '通貨',
+                docTypeLabel: '文書の種類', docTypeInvoice: '請求書', docTypeProforma: 'プロフォルマインボイス', docTypeQuotation: '見積書',
+                issueDateLabel: '発行日', dueDateLabel: '期日',
+                billedByTitle: '請求元', billedToTitle: '請求先',
+                lineItemsTitle: '項目', addItemBtn: '項目を追加',
+                totalsNotesTitle: '合計と備考', taxRateLabel: '税率 (%)', discountLabel: '割引 (%)', notesLabel: '備考 / 条件',
+                bankDetailsTitle: '銀行詳細', invoiceTitle: '請求書', thDescription: '説明', thQty: '数量', thPrice: '単価', thTotal: '合計',
+                subtotalLabel: '小計', totalDueLabel: 'ご請求額',
+                phCompanyName: '会社名', phEmail: 'メールアドレス', phPhone: '電話番号', phCompanyAddress: '会社の住所', phWebsite: 'ウェブサイト',
+                phClientName: '顧客名', phClientEmail: '顧客のメール', phClientPhone: '顧客の電話番号', phClientAddress: '顧客の住所',
+                phItemDesc: '説明', phBankDetails: '銀行名：\n口座番号：\nIBAN：',
+                templateStandard: '標準レイアウト', templateModern: 'モダンレイアウト', templateClassic: 'クラシックレイアウト'
+            },
+             ar: {
+                appTitle: 'صانع الفواتير', downloadPDF: 'تنزيل PDF',
+                companyLogoTitle: 'شعار الشركة', logoRecommendation: 'موصى به: PNG أو JPG بخلفية شفافة.',
+                invoiceDetailsTitle: 'تفاصيل الفاتورة', invoiceNumberLabel: 'رقم الفاتورة', currencyLabel: 'العملة',
+                docTypeLabel: 'نوع المستند', docTypeInvoice: 'فاتورة', docTypeProforma: 'فاتورة مبدئية', docTypeQuotation: 'عرض سعر',
+                issueDateLabel: 'تاريخ الإصدار', dueDateLabel: 'تاريخ الاستحقاق',
+                billedByTitle: 'بواسطة', billedToTitle: 'فاتورة إلى',
+                lineItemsTitle: 'العناصر', addItemBtn: 'إضافة عنصر',
+                totalsNotesTitle: 'المجاميع والملاحظات', taxRateLabel: 'نسبة الضريبة (%)', discountLabel: 'الخصم (%)', notesLabel: 'ملاحظات / شروط',
+                bankDetailsTitle: 'التفاصيل المصرفية', invoiceTitle: 'فاتورة', thDescription: 'الوصف', thQty: 'الكمية', thPrice: 'السعر', thTotal: 'المجموع',
+                subtotalLabel: 'المجموع الفرعي', totalDueLabel: 'الإجمالي المستحق',
+                phCompanyName: 'اسم شركتك', phEmail: 'البريد الإلكتروني', phPhone: 'رقم الهاتف', phCompanyAddress: 'عنوان الشركة', phWebsite: 'الموقع الإلكتروني',
+                phClientName: 'اسم العميل', phClientEmail: 'البريد الإلكتروني للعميل', phClientPhone: 'هاتف العميل', phClientAddress: 'عنوان العميل',
+                phItemDesc: 'الوصف', phBankDetails: 'اسم البنك:\nرقم الحساب:\nالآيبان (IBAN):',
+                templateStandard: 'التخطيط القياسي', templateModern: 'التخطيط الحديث', templateClassic: 'التخطيط الكلاسيكي'
+            },
+             hi: {
+                appTitle: 'इनवॉइस जेन', downloadPDF: 'PDF डाउनलोड करें',
+                companyLogoTitle: 'कंपनी का लोगो', logoRecommendation: 'अनुशंसित: पारदर्शी पृष्ठभूमि के साथ PNG या JPG.',
+                invoiceDetailsTitle: 'इनवॉइस विवरण', invoiceNumberLabel: 'इनवॉइस संख्या', currencyLabel: 'मुद्रा',
+                docTypeLabel: 'दस्तावेज़ का प्रकार', docTypeInvoice: 'चालान', docTypeProforma: 'प्रोफोर्मा चालान', docTypeQuotation: 'उद्धरण (कोटेशन)',
+                issueDateLabel: 'जारी करने की तिथि', dueDateLabel: 'देय तिथि',
+                billedByTitle: 'द्वारा बिल किया गया', billedToTitle: 'को बिल किया गया',
+                lineItemsTitle: 'आइटम', addItemBtn: 'आइटम जोड़ें',
+                totalsNotesTitle: 'योग और नोट्स', taxRateLabel: 'कर दर (%)', discountLabel: 'छूट (%)', notesLabel: 'नोट्स / शर्तें',
+                bankDetailsTitle: 'बैंक विवरण', invoiceTitle: 'चालान (इनवॉइस)', thDescription: 'विवरण', thQty: 'मात्रा', thPrice: 'मूल्य', thTotal: 'कुल',
+                subtotalLabel: 'उप-योग', totalDueLabel: 'कुल देय',
+                phCompanyName: 'आपकी कंपनी का नाम', phEmail: 'ईमेल पता', phPhone: 'फ़ोन नंबर', phCompanyAddress: 'कंपनी का पता', phWebsite: 'वेबसाइट',
+                phClientName: 'क्लाइंट का नाम', phClientEmail: 'क्लाइंट ईमेल', phClientPhone: 'क्लाइंट फ़ोन', phClientAddress: 'क्लाइंट का पता',
+                phItemDesc: 'विवरण', phBankDetails: 'बैंक का नाम:\nखाता संख्या:\nIBAN:',
+                templateStandard: 'मानक लेआउट', templateModern: 'आधुनिक लेआउट', templateClassic: 'क्लासिक लेआउट'
+            }
+        };
+
+        // Format Currency Helper
+        function formatMoney(amount) {
+            const sym = document.getElementById('inv-currency').value || '$';
+            // Handle spacing for symbols that are typically suffixes or need spaces
+            const requiresSpace = ['CHF', 'kr', 'R', 'د.إ'].includes(sym);
+            const formattedNum = parseFloat(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return requiresSpace ? `${formattedNum} ${sym}` : `${sym}${formattedNum}`;
+        }
+
+        function applyTranslations() {
+            const t = translations[currentLang];
+            
+            // Text Content Elements
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.innerText = t[key];
+            });
+
+            // Input Placeholders
+            document.querySelectorAll('[data-placeholder-i18n]').forEach(el => {
+                const key = el.getAttribute('data-placeholder-i18n');
+                if (t[key]) el.placeholder = t[key];
+            });
+
+            // Adjust layout for RTL languages (Arabic)
+            const previewSection = document.getElementById('invoice-preview-container');
+            if (currentLang === 'ar') {
+                previewSection.setAttribute('dir', 'rtl');
+            } else {
+                previewSection.setAttribute('dir', 'ltr');
+            }
+
+            // Update template select options text
+            Array.from(document.getElementById('app-template').options).forEach(opt => {
+                const key = opt.getAttribute('data-i18n');
+                if (t[key]) opt.text = t[key];
+            });
+
+            renderFormItems(); // Re-render to update placeholders in dynamic items
+            updatePreview(); // Re-render preview to apply table headers & labels
+        }
+
+        // Template switcher listener
+        document.getElementById('app-template').addEventListener('change', (e) => {
+            const previewCont = document.getElementById('invoice-preview-container');
+            previewCont.classList.remove('template-standard', 'template-modern', 'template-classic');
+            previewCont.classList.add(e.target.value);
+        });
+
+        document.getElementById('app-language').addEventListener('change', (e) => {
+            currentLang = e.target.value;
+            applyTranslations();
+        });
+
+        function renderFormItems() {
+            const container = document.getElementById('items-form-container');
+            container.innerHTML = '';
+            const t = translations[currentLang];
+
+            items.forEach((item, index) => {
+                const row = document.createElement('div');
+                row.className = 'flex gap-2 items-start bg-slate-50 p-3 rounded-lg border border-slate-200';
+                row.innerHTML = `
+                    <div class="flex-1">
+                        <input type="text" placeholder="${t.phItemDesc}" class="w-full border border-slate-300 rounded p-1.5 text-sm mb-2 outline-none focus:border-blue-500" value="${item.desc}" onchange="updateItem(${index}, 'desc', this.value)">
+                        <div class="flex gap-2">
+                            <div class="w-1/3">
+                                <label class="text-xs text-slate-500 block mb-1">${t.thQty}</label>
+                                <input type="number" min="0" class="w-full border border-slate-300 rounded p-1.5 text-sm outline-none focus:border-blue-500" value="${item.qty}" oninput="updateItem(${index}, 'qty', this.value)">
+                            </div>
+                            <div class="w-2/3">
+                                <label class="text-xs text-slate-500 block mb-1">${t.thPrice}</label>
+                                <input type="number" min="0" step="0.01" class="w-full border border-slate-300 rounded p-1.5 text-sm outline-none focus:border-blue-500" value="${item.price}" oninput="updateItem(${index}, 'price', this.value)">
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="removeItem(${index})" class="text-red-400 hover:text-red-600 p-1 mt-1 transition" title="Remove Item">
+                        <i class="ph-fill ph-trash text-lg"></i>
+                    </button>
+                `;
+                container.appendChild(row);
+            });
+            updatePreview();
+        }
+
+        function addItem() {
+            items.push({ id: Date.now(), desc: '', qty: 1, price: 0 });
+            renderFormItems();
+        }
+
+        function removeItem(index) {
+            items.splice(index, 1);
+            renderFormItems();
+        }
+
+        function updateItem(index, field, value) {
+            if(field === 'desc') {
+                items[index][field] = value;
+            } else {
+                items[index][field] = parseFloat(value) || 0;
+            }
+            updatePreview();
+        }
+
+        function updatePreview() {
+            const t = translations[currentLang];
+
+            // Document Title
+            const docTypeKey = document.getElementById('inv-doc-type').value;
+            document.getElementById('preview-title').innerText = (t[docTypeKey] || 'INVOICE').toUpperCase();
+
+            // Text fields
+            document.getElementById('preview-inv-number').innerText = document.getElementById('inv-number').value || '#';
+            
+            document.getElementById('preview-from-name').innerText = document.getElementById('from-name').value;
+            document.getElementById('preview-from-email').innerText = document.getElementById('from-email').value;
+            document.getElementById('preview-from-phone').innerText = document.getElementById('from-phone').value;
+            document.getElementById('preview-from-address').innerText = document.getElementById('from-address').value;
+            
+            // Hide phone/email icons if empty
+            document.getElementById('preview-from-phone').parentElement.style.display = document.getElementById('from-phone').value ? 'flex' : 'none';
+            document.getElementById('preview-from-email').parentElement.style.display = document.getElementById('from-email').value ? 'flex' : 'none';
+            
+            document.getElementById('preview-to-name').innerText = document.getElementById('to-name').value;
+            document.getElementById('preview-to-email').innerText = document.getElementById('to-email').value;
+            document.getElementById('preview-to-phone').innerText = document.getElementById('to-phone').value;
+            document.getElementById('preview-to-address').innerText = document.getElementById('to-address').value;
+
+             // Hide phone/email icons if empty
+            document.getElementById('preview-to-phone').parentElement.style.display = document.getElementById('to-phone').value ? 'flex' : 'none';
+            document.getElementById('preview-to-email').parentElement.style.display = document.getElementById('to-email').value ? 'flex' : 'none';
+            
+            document.getElementById('preview-notes').innerText = document.getElementById('inv-notes').value;
+            
+            const bankVal = document.getElementById('inv-bank').value;
+            document.getElementById('preview-bank').innerText = bankVal;
+            document.getElementById('preview-bank-container').style.display = bankVal ? 'block' : 'none';
+
+            // Dates
+            const dateVal = document.getElementById('inv-date').value;
+            const dueDateVal = document.getElementById('inv-due-date').value;
+            
+            // Format dates locale aware
+            const dateOpts = { year: 'numeric', month: 'short', day: 'numeric' };
+            document.getElementById('preview-date').innerText = dateVal ? new Date(dateVal).toLocaleDateString(currentLang, dateOpts) : '-';
+            document.getElementById('preview-due-date').innerText = dueDateVal ? new Date(dueDateVal).toLocaleDateString(currentLang, dateOpts) : '-';
+
+            // Items Table
+            const tbody = document.getElementById('preview-items-body');
+            tbody.innerHTML = '';
+            let subtotal = 0;
+
+            const isRTL = currentLang === 'ar';
+            const alignStart = isRTL ? 'text-right' : 'text-left';
+            const alignEnd = isRTL ? 'text-left' : 'text-right';
+
+            items.forEach(item => {
+                const total = item.qty * item.price;
+                subtotal += total;
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-slate-100 last:border-0 text-xs';
+                tr.innerHTML = `
+                    <td class="py-2.5 text-slate-800 ${isRTL ? 'pl-2' : 'pr-2'} ${alignStart}">${item.desc}</td>
+                    <td class="py-2.5 text-center text-slate-600">${item.qty}</td>
+                    <td class="py-2.5 ${alignEnd} text-slate-600">${formatMoney(item.price)}</td>
+                    <td class="py-2.5 ${alignEnd} font-medium text-slate-800">${formatMoney(total)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Totals
+            const discountPct = parseFloat(document.getElementById('inv-discount').value) || 0;
+            const taxPct = parseFloat(document.getElementById('inv-tax').value) || 0;
+            
+            const discountAmt = subtotal * (discountPct / 100);
+            const subtotalAfterDiscount = subtotal - discountAmt;
+            const taxAmt = subtotalAfterDiscount * (taxPct / 100);
+            const grandTotal = subtotalAfterDiscount + taxAmt;
+
+            document.getElementById('preview-subtotal').innerText = formatMoney(subtotal);
+            
+            // Discount Row Visibility
+            const discRow = document.getElementById('preview-discount-row');
+            if (discountPct > 0) {
+                discRow.style.display = 'flex';
+                document.getElementById('preview-discount-label').innerText = `${t.discountLabel.replace('(%)', '')} (${discountPct}%)`;
+                document.getElementById('preview-discount-amt').innerText = `-${formatMoney(discountAmt)}`;
+            } else {
+                discRow.style.display = 'none';
+            }
+
+            // Tax Row Visibility
+            const taxRow = document.getElementById('preview-tax-row');
+            if (taxPct > 0) {
+                taxRow.style.display = 'flex';
+                document.getElementById('preview-tax-label').innerText = `${t.taxRateLabel.replace('(%)', '')} (${taxPct}%)`;
+                document.getElementById('preview-tax-amt').innerText = `+${formatMoney(taxAmt)}`;
+            } else {
+                taxRow.style.display = 'none';
+            }
+
+            document.getElementById('preview-total').innerText = formatMoney(grandTotal);
+
+            // Footer Update
+            const fromPhone = document.getElementById('from-phone').value;
+            const fromEmail = document.getElementById('from-email').value;
+            const fromWebsite = document.getElementById('from-website').value;
+            
+            const footerPhoneEl = document.getElementById('footer-from-phone');
+            const footerEmailEl = document.getElementById('footer-from-email');
+            const footerWebsiteEl = document.getElementById('footer-from-website');
+            
+            footerPhoneEl.querySelector('span').innerText = fromPhone;
+            footerPhoneEl.style.display = fromPhone ? 'flex' : 'none';
+            
+            footerEmailEl.querySelector('span').innerText = fromEmail;
+            footerEmailEl.style.display = fromEmail ? 'flex' : 'none';
+            
+            footerWebsiteEl.querySelector('span').innerText = fromWebsite;
+            footerWebsiteEl.style.display = fromWebsite ? 'flex' : 'none';
+            
+            document.getElementById('preview-footer').style.display = (fromPhone || fromEmail || fromWebsite) ? 'flex' : 'none';
+        }
+
+        // Attach input listeners to update preview globally for the form area
+        document.querySelectorAll('input:not([oninput]):not([onchange]):not([type="file"]), textarea, select:not(#app-language)').forEach(el => {
+            el.addEventListener('input', updatePreview);
+            if(el.tagName === 'SELECT') {
+                 el.addEventListener('change', updatePreview);
+            }
+        });
+
+        // Logo upload handler
+        document.getElementById('logo-upload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            const logoImg = document.getElementById('preview-logo');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    logoImg.src = e.target.result;
+                    logoImg.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                logoImg.src = '';
+                logoImg.classList.add('hidden');
+            }
+        });
+
+        // Helper function for UI notifications
+        function showNotification(message, isError = false) {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 transition-opacity duration-300 ${isError ? 'bg-red-500' : 'bg-slate-800'}`;
+            toast.innerText = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Generate PDF using html2pdf
+        function downloadPDF() {
+            const element = document.getElementById('invoice-preview-container');
+            const invNumber = document.getElementById('inv-number').value || 'invoice';
+            
+            const opt = {
+                margin:       [0, 0, 0, 0], // Margin is handled by the div padding
+                filename:     `${invNumber}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            // Temporary visual tweaks before generating to ensure crisp PDF
+            element.style.boxShadow = 'none'; 
+            element.classList.remove('transition-all', 'duration-300'); // Prevent transition glitches during capture
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+                // Restore styles after download
+                element.style.boxShadow = '0 10px 25px rgba(0,0,0,0.1)';
+                setTimeout(() => element.classList.add('transition-all', 'duration-300'), 100);
+                showNotification("PDF downloaded successfully!");
+            }).catch((err) => {
+                console.error("PDF generation error:", err);
+                // Restore styles if error occurs
+                element.style.boxShadow = '0 10px 25px rgba(0,0,0,0.1)';
+                setTimeout(() => element.classList.add('transition-all', 'duration-300'), 100);
+                showNotification("Unable to generate PDF. Browser restrictions might be blocking downloads.", true);
+            });
+        }
+
+        // Initial render
+        applyTranslations(); // This will call renderFormItems and updatePreview
+
+    </script>
+</body>
+</html>
