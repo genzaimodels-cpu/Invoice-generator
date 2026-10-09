@@ -74,21 +74,21 @@
         }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans h-screen overflow-hidden flex flex-col">
+<body class="bg-slate-100 text-slate-800 font-sans h-screen flex flex-col">
 
     <header class="bg-white border-b border-slate-200 shadow-sm z-10 flex-shrink-0">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-2">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 lg:h-16 flex flex-col lg:flex-row items-center justify-between gap-3 lg:gap-0">
+            <div class="flex items-center gap-2 w-full lg:w-auto justify-center lg:justify-start">
                 <i class="ph-fill ph-receipt text-3xl text-blue-600"></i>
                 <h1 class="font-bold text-xl tracking-tight text-slate-900" data-i18n="appTitle">InvoiceGen</h1>
             </div>
-            <div class="flex items-center gap-3">
-                <select id="app-template" class="border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium bg-white cursor-pointer shadow-sm">
+            <div class="flex items-center justify-center flex-wrap gap-2 sm:gap-3 w-full lg:w-auto">
+                <select id="app-template" class="border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium bg-white cursor-pointer shadow-sm flex-1 sm:flex-none">
                     <option value="template-standard" data-i18n="templateStandard" selected>Standard Layout</option>
                     <option value="template-modern" data-i18n="templateModern">Modern Layout</option>
                     <option value="template-classic" data-i18n="templateClassic">Classic Layout</option>
                 </select>
-                <select id="app-language" class="border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium bg-slate-50 cursor-pointer shadow-sm">
+                <select id="app-language" class="border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium bg-slate-50 cursor-pointer shadow-sm flex-1 sm:flex-none">
                     <option value="en" selected>English</option>
                     <option value="es">Español</option>
                     <option value="fr">Français</option>
@@ -100,7 +100,7 @@
                     <option value="ar">العربية (Arabic)</option>
                     <option value="hi">हिन्दी (Hindi)</option>
                 </select>
-                <button onclick="downloadPDF()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm">
+                <button onclick="downloadPDF()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-sm w-full sm:w-auto">
                     <i class="ph ph-download-simple text-lg"></i>
                     <span data-i18n="downloadPDF">Download PDF</span>
                 </button>
@@ -108,10 +108,10 @@
         </div>
     </header>
 
-    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+    <main class="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden relative">
         
         <!-- LEFT COLUMN: Form Inputs -->
-        <section class="w-full lg:w-1/2 xl:w-2/5 bg-white border-r border-slate-200 overflow-y-auto custom-scroll p-6 lg:p-8">
+        <section class="w-full lg:w-1/2 xl:w-2/5 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 lg:overflow-y-auto custom-scroll p-4 sm:p-6 lg:p-8 flex-shrink-0 lg:flex-shrink">
             <div class="space-y-8 max-w-lg mx-auto lg:mx-0">
                 
                 <div>
@@ -227,10 +227,10 @@
             </div>
         </section>
 
-        <section class="w-full lg:w-1/2 xl:w-3/5 bg-slate-200 overflow-y-auto p-4 lg:p-8 flex justify-center items-start custom-scroll" id="preview-section">
+        <section class="w-full lg:w-1/2 xl:w-3/5 bg-slate-200 lg:overflow-y-auto overflow-x-auto p-4 sm:p-6 lg:p-8 flex justify-start md:justify-center items-start custom-scroll flex-shrink-0 lg:flex-shrink" id="preview-section">
             
             <!-- This is the container that will be converted to PDF -->
-            <div id="invoice-preview-container" class="bg-white w-full max-w-[800px] min-h-[1056px] p-8 relative flex flex-col text-slate-800 transition-all duration-300 template-standard">
+            <div id="invoice-preview-container" class="bg-white w-[800px] min-w-[800px] min-h-[1056px] p-8 relative flex flex-col text-slate-800 transition-all duration-300 template-standard shadow-lg mx-auto lg:mx-0">
                 
                 <!-- Preview Header -->
                 <div class="flex justify-between items-start mb-6">
@@ -773,8 +773,15 @@
             }, 3000);
         }
 
+        // Global handler to catch and suppress unhandled promise rejections
+        // This is useful in iframe/sandboxed environments where PDF generation might be blocked
+        window.addEventListener('unhandledrejection', function(event) {
+            console.warn('Caught unhandled rejection:', event.reason);
+            event.preventDefault(); // Prevents the error from crashing the environment's error overlay
+        });
+
         // Generate PDF using html2pdf
-        function downloadPDF() {
+        async function downloadPDF() {
             const element = document.getElementById('invoice-preview-container');
             const invNumber = document.getElementById('inv-number').value || 'invoice';
             
@@ -782,7 +789,7 @@
                 margin:       [0, 0, 0, 0], // Margin is handled by the div padding
                 filename:     `${invNumber}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
                 jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
             };
 
@@ -790,18 +797,20 @@
             element.style.boxShadow = 'none'; 
             element.classList.remove('transition-all', 'duration-300'); // Prevent transition glitches during capture
             
-            html2pdf().set(opt).from(element).save().then(() => {
+            try {
+                await html2pdf().set(opt).from(element).save();
+                
                 // Restore styles after download
                 element.style.boxShadow = '0 10px 25px rgba(0,0,0,0.1)';
                 setTimeout(() => element.classList.add('transition-all', 'duration-300'), 100);
                 showNotification("PDF downloaded successfully!");
-            }).catch((err) => {
+            } catch (err) {
                 console.error("PDF generation error:", err);
                 // Restore styles if error occurs
                 element.style.boxShadow = '0 10px 25px rgba(0,0,0,0.1)';
                 setTimeout(() => element.classList.add('transition-all', 'duration-300'), 100);
                 showNotification("Unable to generate PDF. Browser restrictions might be blocking downloads.", true);
-            });
+            }
         }
 
         // Initial render
